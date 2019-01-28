@@ -22,9 +22,9 @@
 source /etc/os-release
 
 # Configuration variables. Tailor to your environment
-CUCKOO_GUEST_IMAGE="/tmp/W7-01.ova"
+CUCKOO_GUEST_IMAGE="/tmp/Win10.ova"
 CUCKOO_GUEST_NAME="vm"
-CUCKOO_GUEST_IP="192.168.87.15"
+CUCKOO_GUEST_IP="192.168.10.15"
 INTERNET_INT_NAME="eth0"
 
 # Base variables. Only change these if you know what you are doing...
@@ -35,14 +35,14 @@ CUCKOO_USER="cuckoo"
 CUCKOO_PASSWD="cuckoo"
 CUSTOM_PKGS=""
 ORIG_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}"  )" && pwd  )
-VOLATILITY_URL="http://downloads.volatilityfoundation.org/releases/2.4/volatility-2.4.tar.gz"
+VOLATILITY_URL="http://downloads.volatilityfoundation.org/releases/2.6/volatility-2.6.zip"
 YARA_REPO="https://github.com/plusvic/yara"
 
 VIRTUALBOX_REP="deb http://download.virtualbox.org/virtualbox/debian $RELEASE contrib"
 
 VIRTUALBOX_INT_NAME="vboxnet0"
-VIRTUALBOX_INT_NETWORK="192.168.87.0/24"
-VIRTUALBOX_INT_ADDR="192.168.87.1"
+VIRTUALBOX_INT_NETWORK="192.168.10.0/24"
+VIRTUALBOX_INT_ADDR="192.168.10.1"
 VIRTUALBOX_INT_SUBNET="255.255.255.0"
 
 LOG=$(mktemp)
@@ -51,7 +51,7 @@ UPGRADE=true
 declare -a packages
 declare -a python_packages
 
-packages="git python python-pip libffi-dev libssl-dev python-virtualenv python-setuptools libjpeg-dev zlib1g-dev swig postgresql libpq-dev tcpdump apparmor-utils libtiff5-dev libjpeg8-dev zlib1g-dev libfreetype6-dev liblcms2-dev libwebp-dev tcl8.6-dev tk8.6-dev python-tk build-essential libssl-dev libffi-dev python-dev libssl-dev libjansson-dev virtualbox mongodb"
+packages="git python python-pip libffi-dev libssl-dev python-virtualenv python-setuptools libjpeg-dev zlib1g-dev swig postgresql libpq-dev tcpdump apparmor-utils libtiff5-dev libjpeg8-dev zlib1g-dev libfreetype6-dev liblcms2-dev libwebp-dev tcl8.6-dev tk8.6-dev python-tk build-essential libssl-dev libffi-dev unzip python-dev libssl-dev libjansson-dev virtualbox-6.0 mongodb"
 #python_packages="pip setuptools cuckoo distorm3 yara-python"
 python_packages="pip setuptools cuckoo distorm3 yara-python==3.6.3 pycrypto"
 
@@ -191,8 +191,8 @@ build_yara(){
 
 build_volatility(){
     wget $VOLATILITY_URL
-    tar xvf volatility-2.4.tar.gz
-    cd volatility-2.4/
+    unzip volatility-2.6.zip
+    cd volatility-master/
     $SUDO python setup.py build
     $SUDO python setup.py install
     return 0
@@ -201,7 +201,7 @@ build_volatility(){
 prepare_virtualbox(){
     cd ${TMPDIR}
     echo ${VIRTUALBOX_REP} |$SUDO tee /etc/apt/sources.list.d/virtualbox.list
-    wget -O - https://www.virtualbox.org/download/oracle_vbox.asc | $SUDO apt-key add -
+    wget -O - https://www.virtualbox.org/download/oracle_vbox_2016.asc | $SUDO apt-key add -
     pgrep virtualbox && return 1
     pgrep VBox && return 1 
     return 0
@@ -231,7 +231,7 @@ run_cuckoo_community(){
 # - Installed Cuckoo Agent
 # - Disabled UAC, AV, Updates, Firewall
 # - Any other software that is to be installed
-# - IP settings: 192.168.87.15 - 255.255.255.0 - GW:192.168.87.1 DNS:192.168.87.1
+# - IP settings: 192.168.10.15 - 255.255.255.0 - GW:192.168.10.1 DNS:192.168.10.1
 
 import_virtualbox_vm(){
     runuser -l $CUCKOO_USER -c "vboxmanage import ${CUCKOO_GUEST_IMAGE}"
@@ -290,7 +290,7 @@ create_cuckoo_startup_scripts(){
     $SUDO echo "runuser -l cuckoo -c 'cuckoo' &" >> /root/cuckoo-start.sh
     $SUDO echo "runuser -l cuckoo -c 'cuckoo web runserver 0.0.0.0:8000' &" >> /root/cuckoo-start.sh
     $SUDO echo "runuser -l cuckoo -c 'cuckoo api --host 0.0.0.0 --port 8090' &" >> /root/cuckoo-start.sh
-    $SUDO sed -i "/# By default this script does nothing./ { N; s/# By default this script does nothing./&\n\/root\/cuckoo-start.sh\n/ }" /etc/rc.local
+#    $SUDO sed -i "/# By default this script does nothing./ { N; s/# By default this script does nothing./&\n\/root\/cuckoo-start.sh\n/ }" /etc/rc.local
 
     $SUDO chmod +x /root/cuckoo-start.sh
     $SUDO chmod +x /root/cuckoo-kill.sh
