@@ -23,7 +23,7 @@ source /etc/os-release
 
 # Configuration variables. Tailor to your environment
 CUCKOO_GUEST_IMAGE="/tmp/Win10.ova"
-CUCKOO_GUEST_NAME="vm"
+CUCKOO_GUEST_NAME="MSEdge - Win10"
 CUCKOO_GUEST_IP="192.168.10.15"
 INTERNET_INT_NAME="eth0"
 
