@@ -1,31 +1,21 @@
 #!/bin/bash
-
 # CuckooAutoInstall
-
-# Copyright (C) 2014-2015 David Reguera García - dreg@buguroo.com
-# Copyright (C) 2015 David Francos Cuartero - dfrancos@buguroo.com
+# Copyright (C) 2014-2015 David Reguera García - dreg@buguroo.com David Francos Cuartero - dfrancos@buguroo.com
 # Copyright (C) 2017-2018 Erik Van Buggenhout & Didier Stevens - NVISO
-
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# any later version.
-
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# 2018-2019 SlipperyClock
 
 source /etc/os-release
 
 # Configuration variables. Tailor to your environment
-CUCKOO_GUEST_IMAGE="/tmp/Win10.ova"
-CUCKOO_GUEST_NAME="MSEdge - Win10"
-CUCKOO_GUEST_IP="192.168.10.15"
+CUCKOO_GUEST_IMAGE="/tmp/W7-01.ova"
+CUCKOO_GUEST_NAME="vm"
+CUCKOO_GUEST_IP="192.168.87.15"
 INTERNET_INT_NAME="eth0"
+VOLATILITY_VERSION_LONG="volatility-2.6"
+VOLATILITY_VERSION_SHORT="2.6"
+START_SCRIPT="/root/cuckoo-start.sh"
+KILL_SCRIPT="/root/cuckoo-kill.sh"
+CONFIG_SCRIPTS_DIR="/opt/cuckoo-configs"
 
 # Base variables. Only change these if you know what you are doing...
 SUDO="sudo"
@@ -33,16 +23,16 @@ TMPDIR=$(mktemp -d)
 RELEASE=$(lsb_release -cs)
 CUCKOO_USER="cuckoo"
 CUCKOO_PASSWD="cuckoo"
-CUSTOM_PKGS=""
+CUSTOM_PKGS="tor libguac-client-rdp0 libguac-client-vnc0 libguac-client-ssh0 guacd"
 ORIG_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}"  )" && pwd  )
-VOLATILITY_URL="http://downloads.volatilityfoundation.org/releases/2.6/volatility-2.6.zip"
+VOLATILITY_URL="http://downloads.volatilityfoundation.org/releases/$VOLATILITY_VERSION_SHORT/$VOLATILITY_VERSION_LONG.zip"
 YARA_REPO="https://github.com/plusvic/yara"
 
 VIRTUALBOX_REP="deb http://download.virtualbox.org/virtualbox/debian $RELEASE contrib"
 
 VIRTUALBOX_INT_NAME="vboxnet0"
-VIRTUALBOX_INT_NETWORK="192.168.10.0/24"
-VIRTUALBOX_INT_ADDR="192.168.10.1"
+VIRTUALBOX_INT_NETWORK="192.168.87.0/24"
+VIRTUALBOX_INT_ADDR="192.168.87.1"
 VIRTUALBOX_INT_SUBNET="255.255.255.0"
 
 LOG=$(mktemp)
@@ -51,9 +41,9 @@ UPGRADE=true
 declare -a packages
 declare -a python_packages
 
-packages="git python python-pip libffi-dev libssl-dev python-virtualenv python-setuptools libjpeg-dev zlib1g-dev swig postgresql libpq-dev tcpdump apparmor-utils libtiff5-dev libjpeg8-dev zlib1g-dev libfreetype6-dev liblcms2-dev libwebp-dev tcl8.6-dev tk8.6-dev python-tk build-essential libssl-dev libffi-dev unzip python-dev libssl-dev libjansson-dev virtualbox-6.0 mongodb"
+packages="git python python-pip libffi-dev libssl-dev python-virtualenv python-setuptools libjpeg-dev zlib1g-dev swig postgresql libpq-dev tcpdump apparmor-utils libtiff5-dev libjpeg8-dev zlib1g-dev libfreetype6-dev liblcms2-dev libwebp-dev tcl8.6-dev tk8.6-dev python-tk build-essential libssl-dev libffi-dev python-dev libssl-dev libjansson-dev virtualbox mongodb libfuzzy-dev"
 #python_packages="pip setuptools cuckoo distorm3 yara-python"
-python_packages="pip setuptools cuckoo distorm3 yara-python==3.6.3 pycrypto"
+python_packages="pip setuptools cuckoo distorm3 yara-python==3.6.3 pycrypto ssdeep pydeep weasyprint==0.36"
 
 # Pretty icons
 log_icon="\e[31m✓\e[0m"
@@ -72,6 +62,7 @@ cat <<EO
 │ Didier Stevens - <dstevens@nviso.be                     |
 │            Buguroo Offensive Security - 2015            │
 │            NVISO - 2017-2018                            │
+│            Slipperyclock - 2018-2019                    │
 └─────────────────────────────────────────────────────────┘
 EO
 }
@@ -148,6 +139,7 @@ create_cuckoo_user(){
     $SUDO adduser --disabled-login -gecos "" ${CUCKOO_USER}
     echo -e "${CUCKOO_PASSWD}\n${CUCKOO_PASSWD}" | $SUDO passwd ${CUCKOO_USER}
     $SUDO usermod -G vboxusers ${CUCKOO_USER}
+    $SUDO mkdir $CONFIG_SCRIPTS_DIR
     return 0
 }
 
@@ -191,8 +183,8 @@ build_yara(){
 
 build_volatility(){
     wget $VOLATILITY_URL
-    unzip volatility-2.6.zip
-    cd volatility-master/
+    unzip $VOLATILITY_VERSION_LONG.zip -d $VOLATILITY_VERSION_LONG
+    cd $VOLATILITY_VERSION_LONG/volatility-master/
     $SUDO python setup.py build
     $SUDO python setup.py install
     return 0
@@ -201,6 +193,7 @@ build_volatility(){
 prepare_virtualbox(){
     cd ${TMPDIR}
     echo ${VIRTUALBOX_REP} |$SUDO tee /etc/apt/sources.list.d/virtualbox.list
+    wget -O - https://www.virtualbox.org/download/oracle_vbox.asc | $SUDO apt-key add -
     wget -O - https://www.virtualbox.org/download/oracle_vbox_2016.asc | $SUDO apt-key add -
     pgrep virtualbox && return 1
     pgrep VBox && return 1 
@@ -231,7 +224,7 @@ run_cuckoo_community(){
 # - Installed Cuckoo Agent
 # - Disabled UAC, AV, Updates, Firewall
 # - Any other software that is to be installed
-# - IP settings: 192.168.10.15 - 255.255.255.0 - GW:192.168.10.1 DNS:192.168.10.1
+# - IP settings: 192.168.87.15 - 255.255.255.0 - GW:192.168.87.1 DNS:192.168.87.1
 
 import_virtualbox_vm(){
     runuser -l $CUCKOO_USER -c "vboxmanage import ${CUCKOO_GUEST_IMAGE}"
@@ -258,44 +251,120 @@ poweroff_virtualbox_vm(){
 update_cuckoo_config(){
     # Update IP address of result server
     sed -i "s/192.168.56.1/${VIRTUALBOX_INT_ADDR}/g" /home/$CUCKOO_USER/.cuckoo/conf/cuckoo.conf
+    sed -i "/\[remotecontrol\]\n\nenabled = no/{ N; s/.*/\[remotecontrol\]\n\nenabled = yes/; }" /home/$CUCKOO_USER/.cuckoo/conf/cuckoo.conf
     sed -i "s/192.168.56.1/${VIRTUALBOX_INT_ADDR}/g" /home/$CUCKOO_USER/.cuckoo/conf/routing.conf
-
+    sed -i "s/whitelist_dns = no/whitelist_dns = yes/g" /home/$CUCKOO_USER/.cuckoo/conf/processing.conf
+    sed -i "/\[virustotal\]/{ N; s/.*/\[virustotal\]\nenabled = yes/; }" /home/$CUCKOO_USER/.cuckoo/conf/processing.conf
     # Update VM settings
     sed -i "s/label = cuckoo1/label = ${CUCKOO_GUEST_NAME}/g" /home/$CUCKOO_USER/.cuckoo/conf/virtualbox.conf
     sed -i "s/ip = 192.168.56.101/ip = ${CUCKOO_GUEST_IP}/g" /home/$CUCKOO_USER/.cuckoo/conf/virtualbox.conf
     sed -i "/\[mongodb\]/{ N; s/.*/\[mongodb\]\nenabled = yes/; }" /home/$CUCKOO_USER/.cuckoo/conf/reporting.conf
     sed -i 's/"192.168.56.1"/"${VIRTUALBOX_INT_ADDR}"/g' /home/$CUCKOO_USER/.config/VirtualBox/VirtualBox.xml
     sed -i '/DHCPServer/d' /home/$CUCKOO_USER/.config/VirtualBox/VirtualBox.xml
+    # Use default whitelist    
+    echo 'wget https://raw.githubusercontent.com/Slipperyclock/SEC599/master/domain.txt -O /home/cuckoo/.cuckoo/whitelist/domain.txt' > /opt/cuckoo-configs/update_domain.sh
+    chmod +x /opt/cuckoo-configs/update_domain.sh
+    /opt/cuckoo-configs/update_domain.sh
+    echo "@weekly root /opt/cuckoo-configs/update_domain.sh" >> /etc/crontab
+    return 0
 }
 
 create_cuckoo_startup_scripts(){
-    $SUDO rm /root/cuckoo-start.sh
-    $SUDO rm /root/cuckoo-kill.sh
-    $SUDO echo "#!/bin/bash" >> /root/cuckoo-start.sh
-    $SUDO echo "# Cuckoo run script" >> /root/cuckoo-start.sh
-    $SUDO echo "#!/bin/bash" >> /root/cuckoo-kill.sh
-    $SUDO echo "# Cuckoo run script" >> /root/cuckoo-kill.sh
-    $SUDO echo "killall cuckoo" >> /root/cuckoo-start.sh
-    $SUDO echo "pkill -f 'cuckoo web runserver'" >> /root/cuckoo-start.sh
+    $SUDO rm $START_SCRIPT
+    $SUDO rm $START_SCRIPT
+    $SUDO echo "#!/bin/bash" >> $START_SCRIPT
+    $SUDO echo "# Cuckoo run script" >> $START_SCRIPT
+    $SUDO echo "#!/bin/bash" >> $KILL_SCRIPT
+    $SUDO echo "# Cuckoo run script" >> $KILL_SCRIPT
+    $SUDO echo "killall cuckoo" >> $START_SCRIPT
+    $SUDO echo "pkill -f 'cuckoo web runserver'" >> $START_SCRIPT
+    $SUDO echo "systemctl stop tor" >> $START_SCRIPT
+    $SUDO echo "systemctl start tor" >> $START_SCRIPT
+    $SUDO echo "cuckoo rooter -g cuckoo &" >> $START_SCRIPT
+    $SUDO echo "vboxmanage dhcpserver modify --ifname $VIRTUALBOX_INT_NAME --disable" >> $START_SCRIPT
+    $SUDO echo "vboxmanage hostonlyif ipconfig $VIRTUALBOX_INT_NAME --ip $VIRTUALBOX_INT_ADDR --netmask $VIRTUALBOX_INT_SUBNET" >> $START_SCRIPT
+    $SUDO echo "iptables -A FORWARD -o $INTERNET_INT_NAME -i $VIRTUALBOX_INT_NAME -s $VIRTUALBOX_INT_NETWORK -m conntrack --ctstate NEW -j ACCEPT" >> $START_SCRIPT
+    $SUDO echo "iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT" >> $START_SCRIPT
+    $SUDO echo "iptables -A POSTROUTING -t nat -j MASQUERADE" >> $START_SCRIPT
+    $SUDO echo "sysctl -w net.ipv4.ip_forward=1" >> $START_SCRIPT
 
-    $SUDO echo "vboxmanage dhcpserver modify --ifname $VIRTUALBOX_INT_NAME --disable" >> /root/cuckoo-start.sh
-    $SUDO echo "vboxmanage hostonlyif ipconfig $VIRTUALBOX_INT_NAME --ip $VIRTUALBOX_INT_ADDR --netmask $VIRTUALBOX_INT_SUBNET" >> /root/cuckoo-start.sh
-    $SUDO echo "iptables -A FORWARD -o $INTERNET_INT_NAME -i $VIRTUALBOX_INT_NAME -s $VIRTUALBOX_INT_NETWORK -m conntrack --ctstate NEW -j ACCEPT" >> /root/cuckoo-start.sh
-    $SUDO echo "iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT" >> /root/cuckoo-start.sh
-    $SUDO echo "iptables -A POSTROUTING -t nat -j MASQUERADE" >> /root/cuckoo-start.sh
-    $SUDO echo "sysctl -w net.ipv4.ip_forward=1" >> /root/cuckoo-start.sh
+    $SUDO echo "killall cuckoo" >> $KILL_SCRIPT
+    $SUDO echo "pkill -f 'cuckoo web runserver'" >> $KILL_SCRIPT
+    $SUDO echo "runuser -l cuckoo -c 'cuckoo' &" >> $START_SCRIPT
+    $SUDO echo "runuser -l cuckoo -c 'cuckoo web runserver 0.0.0.0:8000' &" >> $START_SCRIPT
+    $SUDO echo "runuser -l cuckoo -c 'cuckoo api --host 0.0.0.0 --port 8090' &" >> $START_SCRIPT
 
-    $SUDO echo "killall cuckoo" >> /root/cuckoo-kill.sh
-    $SUDO echo "pkill -f 'cuckoo web runserver'" >> /root/cuckoo-kill.sh
-    $SUDO echo "runuser -l cuckoo -c 'cuckoo' &" >> /root/cuckoo-start.sh
-    $SUDO echo "runuser -l cuckoo -c 'cuckoo web runserver 0.0.0.0:8000' &" >> /root/cuckoo-start.sh
-    $SUDO echo "runuser -l cuckoo -c 'cuckoo api --host 0.0.0.0 --port 8090' &" >> /root/cuckoo-start.sh
-#    $SUDO sed -i "/# By default this script does nothing./ { N; s/# By default this script does nothing./&\n\/root\/cuckoo-start.sh\n/ }" /etc/rc.local
+    $SUDO echo -e "\n@reboot root sleep 120; $START_SCRIPT &\n" >> /etc/crontab
 
-    $SUDO chmod +x /root/cuckoo-start.sh
-    $SUDO chmod +x /root/cuckoo-kill.sh
+    $SUDO chmod +x $START_SCRIPT
+    $SUDO chmod +x $KILL_SCRIPT
 }
 
+disable_systemd_resolved(){
+    #Disable and stop Systemd-Resolved
+    systemctl disable systemd-resolved
+    systemctl stop systemd-resolved
+    
+    #Create DNS set script
+    echo "#!/bin/bash" > /opt/cuckoo-configs/dns_set.sh
+    echo "rm /etc/resolv.conf">> /opt/cuckoo-configs/dns_set.sh
+    echo 'echo "nameserver 1.1.1.1" > /etc/resolv.conf' >> /opt/cuckoo-configs/dns_set.sh
+    echo 'echo "nameserver 1.0.0.1" >> /etc/resolv.conf' >> /opt/cuckoo-configs/dns_set.sh
+    echo 'echo "#$(date)" >> /etc/resolv.conf' >> /opt/cuckoo-configs/dns_set.sh
+    chmod +x /opt/cuckoo-configs/dns_set.sh
+    
+    /opt/cuckoo-configs/dns_set.sh 
+    
+    echo "*/15 * * * * root /opt/cuckoo-configs/dns_set.sh" >> /etc/crontab
+    echo "@reboot root sleep 30; /opt/cuckoo-configs/dns_set.sh" >> /etc/crontab
+    return 0
+}
+
+remote_port_script(){
+	FILE=/opt/cuckoo-configs/ssh_remote_port.sh
+	echo "#!/bin/bash" > $FILE
+	echo "#Port to locally listening" >> $FILE
+	echo "LOCALPORT=8000 " >> $FILE
+	echo "#Port to listen to on remote system" >> $FILE
+	echo "REMOTEPORT=8888 " >> $FILE
+	echo "#Remote server ip/hostname" >> $FILE
+	echo "REMOTESERVER=MYREMOTESERVER" >> $FILE
+	echo "#Remote Server ssh port to connect to" >> $FILE
+	echo "REMOTESERVERPORT=22" >> $FILE
+	echo "#Remote user to login with" >> $FILE
+	echo "USER=myusername" >> $FILE
+	echo "ssh \$USER@\$REMOTESERVER -p \$REMOTESERVERPORT -N -f -R \$REMOTEPORT:127.0.0.1:\$LOCALPORT" >> $FILE
+	chmod +x $FILE
+	return 0
+}
+
+setup_tor(){
+	echo "TransPort $VIRTUALBOX_INT_ADDR:9040" >> /etc/tor/torrc
+	echo "DNSPort $VIRTUALBOX_INT_ADDR:5353" >> /etc/tor/torrc
+	echo "TransPort $VIRTUALBOX_INT_ADDR:9040" >> /usr/share/tor/tor-service-defaults-torrc
+	echo "DNSPort $VIRTUALBOX_INT_ADDR:5353" >> /usr/share/tor/tor-service-defaults-torrc
+	sed -i " N;N;/\[tor\]\n/{ N; s/.*/\[tor\]\n\nenabled = yes/; }" /home/$CUCKOO_USER/.cuckoo/conf/routing.conf
+	return 0
+}
+
+setup_suricata(){
+	apt-get install software-properties-common -y
+	apt-get install suricata -y
+	chmod u+s /usr/bin/suricata
+	# Set Processing.conf to enable Suricata
+	sed -i "/\[suricata\]/{ N; s/.*/\[suricata\]\nenabled = yes/; }" /home/$CUCKOO_USER/.cuckoo/conf/processing.conf
+	sed -i "s/  filename: \/var\/run\/suricata-command.socket/  filename: \/var\/run\/suricata\/cuckoo.socket/g" /etc/suricata/suricata.yaml
+	sed -i "s/#run-as:/run-as:/" /etc/suricata/suricata.yaml
+	sed -i "s/#  user: suri/  user: cuckoo/" /etc/suricata/suricata.yaml
+	sed -i "s/#  user: suri/  user: cuckoo/" /etc/suricata/suricata.yaml
+	sed -i "s/#  group: suri/  group: cuckoo/" /etc/suricata/suricata.yaml
+	sed -i " N; s/  - file-store:\n      enabled: no/  - file-store:\n      enabled: yes/" /etc/suricata/suricata.yaml
+	sed -i " N; s/  - file-log:\n      enabled: no/  - file-log:\n      enabled: yes/" /etc/suricata/suricata.yaml
+	wget https://raw.githubusercontent.com/Slipperyclock/SEC599/master/suricata.sh -O /opt/cuckoo-configs/suricata.sh
+	chmod +x /opt/cuckoo-configs/suricata.sh
+	echo "@reboot root /opt/cuckoo-configs/suricata.sh &" >> /etc/crontab
+	echo "15 * * * * root /usr/bin/suricatasc -c reload-rules &" >> /etc/crontab
+}
 # Init.
 
 print_copy
@@ -322,6 +391,9 @@ run_and_log install_python_packages "Installing python packages: ${python_packag
 # Install volatility
 run_and_log build_volatility "Installing volatility"
 
+# Disable Ubuntu 18/17 systemd-resolvd
+run_and_log disable_systemd_resolved "Disabling Systemd-Resolved"
+
 # Networking (latest, because sometimes it crashes...)
 run_and_log create_hostonly_iface "Creating hostonly interface for cuckoo"
 run_and_log allow_tcpdump "Allowing tcpdump for normal users"
@@ -337,3 +409,8 @@ run_and_log poweroff_virtualbox_vm
 run_and_log run_cuckoo_community "Downloading community rules"
 run_and_log update_cuckoo_config "Updating Cuckoo config files"
 run_and_log create_cuckoo_startup_scripts "Creating Cuckoo startup scripts"
+run_and_log setup_tor "Setting up TOR configuration"
+run_and_log remote_port_script "Create SSH remote port script"
+run_and_log setup_suricata "Setup Suricata and Cuckoo"
+echo -e "${log_icon_ok} For Remote Control support run 'apt install virtualbox-ext-pack' "
+
