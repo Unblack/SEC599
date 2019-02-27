@@ -7,7 +7,7 @@
 source /etc/os-release
 
 # Configuration variables. Tailor to your environment
-CUCKOO_GUEST_IMAGE="/tmp/W7-01.ova"
+CUCKOO_GUEST_IMAGE="/tmp/vm.ova"
 CUCKOO_GUEST_NAME="vm"
 CUCKOO_GUEST_IP="192.168.87.15"
 INTERNET_INT_NAME="eth0"
