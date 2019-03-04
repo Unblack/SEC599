@@ -3,13 +3,14 @@
 # Copyright (C) 2014-2015 David Reguera García - dreg@buguroo.com David Francos Cuartero - dfrancos@buguroo.com
 # Copyright (C) 2017-2018 Erik Van Buggenhout & Didier Stevens - NVISO
 # 2018-2019 SlipperyClock
+# 2019 Unblack
 
 source /etc/os-release
 
 # Configuration variables. Tailor to your environment
 CUCKOO_GUEST_IMAGE="/tmp/vm.ova"
 CUCKOO_GUEST_NAME="vm"
-CUCKOO_GUEST_IP="192.168.87.15"
+CUCKOO_GUEST_IP="192.168.56.101"
 INTERNET_INT_NAME="eth0"
 VOLATILITY_VERSION_LONG="volatility-2.6"
 VOLATILITY_VERSION_SHORT="2.6"
@@ -31,8 +32,8 @@ YARA_REPO="https://github.com/plusvic/yara"
 VIRTUALBOX_REP="deb http://download.virtualbox.org/virtualbox/debian $RELEASE contrib"
 
 VIRTUALBOX_INT_NAME="vboxnet0"
-VIRTUALBOX_INT_NETWORK="192.168.87.0/24"
-VIRTUALBOX_INT_ADDR="192.168.87.1"
+VIRTUALBOX_INT_NETWORK="192.168.56.0/24"
+VIRTUALBOX_INT_ADDR="192.168.56.1"
 VIRTUALBOX_INT_SUBNET="255.255.255.0"
 
 LOG=$(mktemp)
@@ -224,7 +225,7 @@ run_cuckoo_community(){
 # - Installed Cuckoo Agent
 # - Disabled UAC, AV, Updates, Firewall
 # - Any other software that is to be installed
-# - IP settings: 192.168.87.15 - 255.255.255.0 - GW:192.168.87.1 DNS:192.168.87.1
+# - IP settings: 192.168.56.101 - 255.255.255.0 - GW:192.168.56.1 DNS:8.8.8.8
 
 import_virtualbox_vm(){
     runuser -l $CUCKOO_USER -c "vboxmanage import ${CUCKOO_GUEST_IMAGE}"
