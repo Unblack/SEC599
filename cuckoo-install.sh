@@ -221,11 +221,13 @@ run_cuckoo_community(){
 }
 
 # The imported virtualbox VM should have the following config:
+# - VM Appliance Name: vm
 # - Installed Python 2.7
 # - Installed Cuckoo Agent
+# - Installed Pillow ( to get screenshots )
 # - Disabled UAC, AV, Updates, Firewall
 # - Any other software that is to be installed
-# - IP settings: 192.168.56.101 - 255.255.255.0 - GW:192.168.56.1 DNS:8.8.8.8
+# - IP settings: 192.168.56.101 - 255.255.255.0 - GW:192.168.56.1 DNS:192.168.56.1
 
 import_virtualbox_vm(){
     runuser -l $CUCKOO_USER -c "vboxmanage import ${CUCKOO_GUEST_IMAGE}"
